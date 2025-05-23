@@ -1,7 +1,7 @@
 -module(chrme_ws_apic).
 
 -behaviour(gen_server).
--export([start/1, start_link/1]).
+-export([start/1, start_link/1, stop/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 -export([
@@ -51,6 +51,11 @@ start(Options) ->
 start_link(Options) ->
     Name = maps:get(name, Options),
     gen_server:start_link({global, Name}, ?MODULE, Options, []).
+
+%% stop the server
+-spec stop(name()) -> ok.
+stop(Name) ->
+    gen_server:stop({global, Name}).
 
  -spec init(options()) -> {ok, state()}.
 init(Options) ->
@@ -138,7 +143,15 @@ handle_info(Info, State) ->
         ]),
     {noreply, State}.
 
-terminate(_reason, _State) ->
+terminate(_Reason, State) ->
+    Pid = maps:get(pid, State),
+    % if websocket upgraded, close it
+    case klsn_map:lookup([stream_ref], State) of
+        {value, Ref} -> catch gun:ws_close(Pid, Ref, 1000, <<"normal">>);
+        _ -> ok
+    end,
+    % close the underlying connection
+    catch gun:close(Pid),
     ok.
 
 
