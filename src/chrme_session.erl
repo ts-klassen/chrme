@@ -1,6 +1,15 @@
 -module(chrme_session).
 -export([start/4, stop/1]).
 
+-export_type([name/0, session/0]).                                          
+-type name() :: chrme_ws_apic:name().                                       
+-type session() :: #{                                                       
+    name       := name(),                                                   
+    host       := klsn:binstr(),                                            
+    port       := integer(),                                                
+    target_id  := klsn:binstr()                                             
+}.
+
 %% Start a new Chrome debugging session by creating a new target and opening a WebSocket
 start(Name, Host, Port, Url) ->
     case chrme_http_apic:new_target(Host, Port, Url) of

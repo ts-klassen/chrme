@@ -2,7 +2,14 @@
 -export([navigate/2, reload/1, stop_loading/1, capture_screenshot/1,
          on_frame_navigated/2, off_frame_navigated/2]).
 
+-export_type([navigation/0]).
+-type navigation() :: #{
+    frame_id  := klsn:binstr(),
+    loader_id := klsn:binstr() | undefined
+}.
+
 %% Navigate the current page to a URL
+-spec navigate(Name :: chrme_session:name(), Url :: klsn:binstr()) -> {ok, navigation()} | {error, term()}.
 navigate(Name, Url) ->
     BinUrl = chrme_util:maybe_to_binary(Url),
     case chrme_cdp:call(Name, <<"Page.navigate">>, #{url => BinUrl}) of
@@ -14,12 +21,14 @@ navigate(Name, Url) ->
             Err
     end.
 
+-spec reload(Name :: chrme_session:name()) -> {ok, undefined} | {error, term()}.
 reload(Name) ->
     case chrme_cdp:call(Name, <<"Page.reload">>, #{}) of
         {ok, _} -> {ok, undefined};
         Err -> Err
     end.
 
+-spec stop_loading(Name :: chrme_session:name()) -> {ok, undefined} | {error, term()}.
 stop_loading(Name) ->
     case chrme_cdp:call(Name, <<"Page.stopLoading">>, #{}) of
         {ok, _} -> {ok, undefined};
@@ -27,6 +36,7 @@ stop_loading(Name) ->
     end.
 
 %% Capture page screenshot as base64
+-spec capture_screenshot(Name :: chrme_session:name()) -> {ok, klsn:binstr()} | {error, term()}.
 capture_screenshot(Name) ->
     case chrme_cdp:call(Name, <<"Page.captureScreenshot">>, #{}) of
         {ok, Resp} ->
@@ -37,6 +47,7 @@ capture_screenshot(Name) ->
     end.
 
 %% Subscribe to frameNavigated events
+-spec on_frame_navigated(Name :: chrme_session:name(), Fun :: fun((map()) -> any())) -> reference().
 on_frame_navigated(Name, Fun) ->
     Ref = make_ref(),
     CallbackName = {chrme_page, on_frame_navigated, Name, Ref},
@@ -52,6 +63,7 @@ on_frame_navigated(Name, Fun) ->
     chrme_ws_apic:add_callback(Name, {CallbackName, CallbackFun}),
     Ref.
 
+-spec off_frame_navigated(Name :: chrme_session:name(), Ref :: reference()) -> ok.
 off_frame_navigated(Name, Ref) ->
     CallbackName = {chrme_page, on_frame_navigated, Name, Ref},
     chrme_ws_apic:remove_callback(Name, CallbackName),
