@@ -11,7 +11,7 @@
 %% Navigate the current page to a URL
 -spec navigate(Name :: chrme_session:name(), Url :: klsn:binstr()) -> {ok, navigation()} | {error, term()}.
 navigate(Name, Url) ->
-    BinUrl = chrme_util:maybe_to_binary(Url),
+    BinUrl = chrme_util:to_binary(Url),
     case chrme_cdp:call(Name, <<"Page.navigate">>, #{url => BinUrl}) of
         {ok, Resp} ->
             FrameId = maps:get(<<"frameId">>, Resp),

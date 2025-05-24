@@ -15,7 +15,7 @@ get_document(Name) ->
 %% Find a child node matching selector
 -spec query_selector(Name :: chrme_session:name(), NodeId :: integer(), Selector0 :: klsn:binstr()) -> {ok, integer()} | {error, term()}.
 query_selector(Name, NodeId, Selector0) ->
-    Sel = chrme_util:maybe_to_binary(Selector0),
+    Sel = chrme_util:to_binary(Selector0),
     case chrme_cdp:call(Name, <<"DOM.querySelector">>, #{nodeId => NodeId, selector => Sel}) of
         {ok, Resp} ->
             {ok, maps:get(<<"nodeId">>, Resp)};
@@ -34,8 +34,8 @@ get_outer_html(Name, NodeId) ->
 %% Set an attribute value on an element
 -spec set_attribute_value(Name :: chrme_session:name(), NodeId :: integer(), AttrName0 :: klsn:binstr(), AttrValue0 :: klsn:binstr()) -> {ok, map()} | {error, term()}.
 set_attribute_value(Name, NodeId, AttrName0, AttrValue0) ->
-    NameBin = chrme_util:maybe_to_binary(AttrName0),
-    ValBin = chrme_util:maybe_to_binary(AttrValue0),
+    NameBin = chrme_util:to_binary(AttrName0),
+    ValBin = chrme_util:to_binary(AttrValue0),
     chrme_cdp:call(Name, <<"DOM.setAttributeValue">>,
                    #{nodeId => NodeId, name => NameBin, value => ValBin}).
 
