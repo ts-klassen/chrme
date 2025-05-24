@@ -82,7 +82,7 @@ init(Options) ->
         end
     },
 process_flag(trap_exit, true),
-{ok, Pid} = gun:open(Host, Port, GunOpts),
+{ok, Pid} = gun:open(binary_to_list(Host), Port, GunOpts),
 State = #{
     pid               => Pid
   , stream_ref        => none
