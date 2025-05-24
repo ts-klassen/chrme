@@ -4,7 +4,7 @@
 
 %% Evaluate a JavaScript expression in the page
 evaluate(Name, Expr0) ->
-    Expr = chrme_util:maybe_to_binary(Expr0),
+    Expr = chrme_util:to_binary(Expr0),
     case chrme_cdp:call(Name, <<"Runtime.evaluate">>, #{expression => Expr}) of
         {ok, Resp} ->
             Result = maps:get(<<"result">>, Resp),
@@ -15,7 +15,7 @@ evaluate(Name, Expr0) ->
 
 %% Call a function on a remote object
 call_function_on(Name, ObjectId, FuncDecl0, Args) ->
-    FuncDecl = chrme_util:maybe_to_binary(FuncDecl0),
+    FuncDecl = chrme_util:to_binary(FuncDecl0),
     Params = #{objectId => ObjectId, functionDeclaration => FuncDecl, arguments => Args},
     case chrme_cdp:call(Name, <<"Runtime.callFunctionOn">>, Params) of
         {ok, Resp} ->
@@ -27,12 +27,12 @@ call_function_on(Name, ObjectId, FuncDecl0, Args) ->
 
 %% Add a binding in the runtime
 add_binding(Name, BindingName0) ->
-    NameBin = chrme_util:maybe_to_binary(BindingName0),
+    NameBin = chrme_util:to_binary(BindingName0),
     chrme_cdp:call(Name, <<"Runtime.addBinding">>, #{name => NameBin}).
 
 %% Remove a binding
 remove_binding(Name, BindingName0) ->
-    NameBin = chrme_util:maybe_to_binary(BindingName0),
+    NameBin = chrme_util:to_binary(BindingName0),
     chrme_cdp:call(Name, <<"Runtime.removeBinding">>, #{name => NameBin}).
 
 %% Subscribe to exceptionThrown events

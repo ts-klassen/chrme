@@ -1,20 +1,20 @@
 %% Utility functions for chrme
 
 -module(chrme_util).
--export([maybe_to_list/1, maybe_to_binary/1, parse_ws_url/1]).
+-export([to_list/1, to_binary/1, parse_ws_url/1]).
 
-maybe_to_list(Bin) when is_binary(Bin) ->
+to_list(Bin) when is_binary(Bin) ->
     binary_to_list(Bin);
-maybe_to_list(List) when is_list(List) ->
+to_list(List) when is_list(List) ->
     List.
 
-maybe_to_binary(List) when is_list(List) ->
+to_binary(List) when is_list(List) ->
     list_to_binary(List);
-maybe_to_binary(Bin) when is_binary(Bin) ->
+to_binary(Bin) when is_binary(Bin) ->
     Bin.
 
 parse_ws_url(WsUrl0) ->
-    Ws = maybe_to_list(WsUrl0),
+    Ws = to_list(WsUrl0),
     case lists:prefix("ws://", Ws) of
         true ->
             PrefixLen = length("ws://"),

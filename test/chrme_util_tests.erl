@@ -2,13 +2,13 @@
 -module(chrme_util_tests).
 -include_lib("eunit/include/eunit.hrl").
 
-maybe_to_list_test() ->
-    ?assertEqual("hello", chrme_util:maybe_to_list(<<"hello">>)),
-    ?assertEqual("world", chrme_util:maybe_to_list("world")).
+to_list_test() ->
+    ?assertEqual("hello", chrme_util:to_list(<<"hello">>)),
+    ?assertEqual("world", chrme_util:to_list("world")).
 
-maybe_to_binary_test() ->
-    ?assertEqual(<<"hello">>, chrme_util:maybe_to_binary("hello")),
-    ?assertEqual(<<"world">>, chrme_util:maybe_to_binary(<<"world">>)).
+to_binary_test() ->
+    ?assertEqual(<<"hello">>, chrme_util:to_binary("hello")),
+    ?assertEqual(<<"world">>, chrme_util:to_binary(<<"world">>)).
 
 parse_ws_url_test() ->
     ?assertEqual({<<"example.com">>,80,<<"/path">>},
