@@ -8,7 +8,6 @@
         is_connected/1
       , last_updated_at/1
       , last_websocket_at/1
-      , data_size/1
     ]).
 
 -export_type([
@@ -82,7 +81,7 @@ init(Options) ->
         end
     },
 process_flag(trap_exit, true),
-{ok, Pid} = gun:open(Host, Port, GunOpts),
+{ok, Pid} = gun:open(binary_to_list(Host), Port, GunOpts),
 State = #{
     pid               => Pid
   , stream_ref        => none
@@ -94,8 +93,6 @@ State = #{
 },
 {ok, State}.
 
-handle_call(data_size, _From, State) ->
-    {reply, maps:size(klsn_map:get([data], State)), State};
 handle_call({lookup_from_state, Path}, _From, State) ->
     {reply, klsn_map:lookup(Path, State), State}.
 
@@ -171,9 +168,4 @@ last_updated_at(Name) ->
 -spec last_websocket_at(name()) -> klsn:maybe(klsn_flux:timestamp()).
 last_websocket_at(Name) ->
     klsn_maybe:get_value(lookup_from_state(Name, [last_websocket_at])).
-
--spec data_size(name()) -> non_neg_integer().
-data_size(Name) ->
-    gen_server:call({global, Name}, data_size).
-
 
