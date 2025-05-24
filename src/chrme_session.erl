@@ -1,0 +1,22 @@
+-module(chrme_session).
+-export([start/4, stop/1]).
+
+%% Start a new Chrome debugging session by creating a new target and opening a WebSocket
+start(Name, Host, Port, Url) ->
+    case chrme_http_apic:new_target(Host, Port, Url) of
+        {ok, TargetMap} ->
+            Id = maps:get(<<"id">>, TargetMap),
+            WsUrl = maps:get(<<"webSocketDebuggerUrl">>, TargetMap),
+            {WsHost, WsPort, WsPath} = chrme_util:parse_ws_url(WsUrl),
+            WsOpts = #{name => Name, host => WsHost, port => WsPort, uri => WsPath},
+            {ok, _Pid} = chrme_ws_apic:start(WsOpts),
+            {ok, #{name => Name, host => WsHost, port => WsPort, target_id => Id}};
+        Error ->
+            Error
+    end.
+
+%% Stop the debugging session, close WebSocket and target
+stop(#{name := Name, host := Host, port := Port, target_id := Id}) ->
+    _ = chrme_ws_apic:stop(Name),
+    _ = chrme_http_apic:close_target(Host, Port, Id),
+    ok.
