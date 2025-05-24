@@ -130,13 +130,13 @@ handle_cast({send, Data}, State) ->
 handle_cast({add_callback, Callback}, State=#{callbacks:=Callbacks}) ->
     {noreply, State#{callbacks:=[Callback|Callbacks]}};
 handle_cast({remove_callback, CallbackName}, State=#{callbacks:=Callbacks}) ->
-    FilteredCalbacks = lists:filter(fun
+    FilteredCallbacks = lists:filter(fun
         ({Name, _}) when Name =:= CallbackName ->
             false;
         (_) ->
             true
     end, Callbacks),
-    {noreply, State#{callbacks:=FilteredCalbacks}};
+    {noreply, State#{callbacks:=FilteredCallbacks}};
 handle_cast({retry, _Retry}, State) ->
     {noreply, State};
 handle_cast(too_many_retry, State) ->
