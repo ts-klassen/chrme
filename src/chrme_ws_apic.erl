@@ -8,6 +8,7 @@
         is_connected/1
       , last_updated_at/1
       , last_websocket_at/1
+      , maybe_pop/1
     ]).
 
 -export_type([
@@ -93,6 +94,10 @@ State = #{
 },
 {ok, State}.
 
+handle_call(maybe_pop, _From, State=#{buffer:=[H|T]}) ->
+    {reply, {value, H}, State#{buffer:=T}};
+handle_call(maybe_pop, _From, State) ->
+    {reply, none, State};
 handle_call({lookup_from_state, Path}, _From, State) ->
     {reply, klsn_map:lookup(Path, State), State}.
 
@@ -168,4 +173,8 @@ last_updated_at(Name) ->
 -spec last_websocket_at(name()) -> klsn:maybe(klsn_flux:timestamp()).
 last_websocket_at(Name) ->
     klsn_maybe:get_value(lookup_from_state(Name, [last_websocket_at])).
+
+-spec maybe_pop(name()) -> klsn:maybe(data()).
+maybe_pop(Name) ->
+    gen_server:call({global, Name}, maybe_pop).
 
