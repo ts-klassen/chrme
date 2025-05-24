@@ -193,6 +193,7 @@ terminate(_Reason, State) ->
     end,
     % close the underlying connection
     catch gun:close(Pid),
+    run_callbacks(stop, maps:get(callbacks, State, [])),
     ok.
 
 
