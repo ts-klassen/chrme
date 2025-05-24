@@ -26,6 +26,6 @@ start(Name, Host, Port, Url) ->
 
 %% Stop the debugging session, close WebSocket and target
 stop(#{name := Name, host := Host, port := Port, target_id := Id}) ->
-    _ = chrme_ws_apic:stop(Name),
-    _ = chrme_http_apic:close_target(Host, Port, Id),
+    chrme_ws_apic:stop(Name),
+    chrme_http_apic:close_target(Host, Port, Id),
     ok.
