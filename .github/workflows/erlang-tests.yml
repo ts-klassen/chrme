@@ -51,13 +51,6 @@ jobs:
       - name: Make test script executable
         run: chmod +x ./run_test.sh
 
-      - name: Install Chromium
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser
-          [ ! -e /usr/bin/google-chrome ] && sudo ln -s /usr/bin/chromium-browser /usr/bin/google-chrome
-          [ ! -e /usr/bin/google-chrome-stable ] && sudo ln -s /usr/bin/chromium-browser /usr/bin/google-chrome-stable
-
       - name: Run test suite
         run: ./run_test.sh
 
