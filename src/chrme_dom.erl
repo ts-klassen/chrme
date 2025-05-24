@@ -51,8 +51,8 @@ on_document_updated(Name, Fun) ->
     CallbackName = {chrme_dom, on_document_updated, Name, Ref},
     CallbackFun = fun
         (stop) -> false;
-        (Msg = #{<<"method">> := <<"DOM.documentUpdated">>}) ->
-            Fun(),
+        (Msg = #{<<"method">> := <<"DOM.documentUpdated">>, <<"params">> := Params}) ->
+            Fun(Params),
             true;
         (_) -> false
     end,
