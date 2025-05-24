@@ -9,12 +9,12 @@
     ]).
 
 -type options() :: #{
-        name := term()
-      , executable := klsn:binstr()
-      , remote_port := 0..65535
-      , user_data_dir := klsn:binstr()
-      , extra_args := [klsn:binstr()]
-      , headless := boolean()
+        name           := term()
+      , executable     => klsn:binstr()
+      , remote_port    => 0..65535
+      , user_data_dir  => klsn:binstr()
+      , extra_args     => [klsn:binstr()]
+      , headless       => boolean()
     }.
 
 -type state() :: #{
