@@ -49,12 +49,16 @@ simple(_Config) ->
         ok = chrme_session:await_start(session1),
 
         %% 5. Read page title via Runtime.evaluate/2
-
-        % FIXME: (codex task) await until dom is loaded.
-        timer:sleep(1000), % temp
-
-        {ok, TitleObj} = chrme_runtime:evaluate(session1, <<"document.title">>),
-        Title = maps:get(<<"value">>, TitleObj, undefined),
+        GetTitle = fun This() ->
+            case chrme_runtime:evaluate(session1, <<"document.title">>) of
+                {ok, #{<<"value">>:=<<>>}} ->
+                    timer:sleep(100),
+                    This();
+                {ok, #{<<"value">>:=Title0}} ->
+                    Title0
+            end
+        end,
+        Title = GetTitle(),
         case Title of
             <<"Example Domain">> -> ok;
             _ -> ct:fail({unexpected_title, Title})
