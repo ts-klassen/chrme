@@ -1,6 +1,6 @@
 -module(chrme_dom).
 -export([get_document/1, query_selector/3, get_outer_html/2, set_attribute_value/4,
-         remove_node/2, on_document_updated/2, off_document_updated/2]).
+         remove_node/2, register_document_updated_handler/2, unregister_document_updated_handler/2]).
 
 %% Get the root document node
 -spec get_document(Name :: chrme_session:name()) -> {ok, map()} | {error, term()}.
@@ -45,10 +45,10 @@ remove_node(Name, NodeId) ->
     chrme_cdp:call(Name, <<"DOM.removeNode">>, #{nodeId => NodeId}).
 
 %% Subscribe to documentUpdated events
--spec on_document_updated(Name :: chrme_session:name(), Fun :: fun(() -> any())) -> reference().
-on_document_updated(Name, Fun) ->
+-spec register_document_updated_handler(Name :: chrme_session:name(), Fun :: fun(() -> any())) -> reference().
+register_document_updated_handler(Name, Fun) ->
     Ref = make_ref(),
-    CallbackName = {chrme_dom, on_document_updated, Name, Ref},
+    CallbackName = {chrme_dom, register_document_updated_handler, Name, Ref},
     CallbackFun = fun
         (stop) -> false;
         (Msg = #{<<"method">> := <<"DOM.documentUpdated">>, <<"params">> := Params}) ->
@@ -59,8 +59,8 @@ on_document_updated(Name, Fun) ->
     chrme_ws_apic:add_callback(Name, {CallbackName, CallbackFun}),
     Ref.
 
--spec off_document_updated(Name :: chrme_session:name(), Ref :: reference()) -> ok.
-off_document_updated(Name, Ref) ->
-    CallbackName = {chrme_dom, on_document_updated, Name, Ref},
+-spec unregister_document_updated_handler(Name :: chrme_session:name(), Ref :: reference()) -> ok.
+unregister_document_updated_handler(Name, Ref) ->
+    CallbackName = {chrme_dom, register_document_updated_handler, Name, Ref},
     chrme_ws_apic:remove_callback(Name, CallbackName),
     ok.

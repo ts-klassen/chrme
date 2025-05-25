@@ -84,7 +84,7 @@ simple(_Config) ->
         %%    assert that we observe the request via the
         %%    Network.requestWillBeSent event.
         Self = self(),
-        RefNetwork = chrme_network:on_request_will_be_sent(session1, fun(Params) ->
+        RefNetwork = chrme_network:register_request_will_be_sent_handler(session1, fun(Params) ->
             Req = maps:get(<<"request">>, Params, #{}),
             case maps:get(<<"url">>, Req, <<>> ) of
                 <<"https://example.com/">> ->
@@ -105,13 +105,13 @@ simple(_Config) ->
             ct:fail(network_event_timeout)
         end,
 
-        chrme_network:off_request_will_be_sent(session1, RefNetwork),
+        chrme_network:unregister_request_will_be_sent_handler(session1, RefNetwork),
 
         %% 8. Navigate to https://example.org and wait for the navigation
         %%    to complete (signalled by Page.frameNavigated).
         {ok, _} = chrme_page:enable(session1),
 
-        RefNav = chrme_page:on_frame_navigated(session1, fun(_Params) ->
+        RefNav = chrme_page:register_frame_navigated_handler(session1, fun(_Params) ->
             Self ! frame_nav,
             true
         end),
@@ -124,7 +124,7 @@ simple(_Config) ->
             ct:fail(navigation_timeout)
         end,
 
-        chrme_page:off_frame_navigated(session1, RefNav),
+        chrme_page:unregister_frame_navigated_handler(session1, RefNav),
 
         %% 9. Clean shutdown.
         ok = chrme_session:stop(Session),

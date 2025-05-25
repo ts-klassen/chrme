@@ -1,7 +1,7 @@
 -module(chrme_network).
 -export([enable/1, disable/1, set_request_interception/2,
          continue_intercepted_request/2, emulate_network_conditions/2,
-         on_request_will_be_sent/2, off_request_will_be_sent/2]).
+         register_request_will_be_sent_handler/2, unregister_request_will_be_sent_handler/2]).
 
 %% Enable network tracking
 -spec enable(Name :: chrme_session:name()) -> {ok, map()} | {error, term()}.
@@ -29,10 +29,10 @@ emulate_network_conditions(Name, Conditions) ->
     chrme_cdp:call(Name, <<"Network.emulateNetworkConditions">>, Conditions).
 
 %% Subscribe to requestWillBeSent events
--spec on_request_will_be_sent(Name :: chrme_session:name(), Fun :: fun((map()) -> any())) -> reference().
-on_request_will_be_sent(Name, Fun) ->
+-spec register_request_will_be_sent_handler(Name :: chrme_session:name(), Fun :: fun((map()) -> any())) -> reference().
+register_request_will_be_sent_handler(Name, Fun) ->
     Ref = make_ref(),
-    CallbackName = {chrme_network, on_request_will_be_sent, Name, Ref},
+    CallbackName = {chrme_network, register_request_will_be_sent_handler, Name, Ref},
     CallbackFun = fun
         (stop) -> false;
         (Msg = #{<<"method">> := <<"Network.requestWillBeSent">>, <<"params">> := Params}) ->
@@ -44,8 +44,8 @@ on_request_will_be_sent(Name, Fun) ->
     Ref.
 
 %% Unsubscribe from requestWillBeSent
--spec off_request_will_be_sent(Name :: chrme_session:name(), Ref :: reference()) -> ok.
-off_request_will_be_sent(Name, Ref) ->
-    CallbackName = {chrme_network, on_request_will_be_sent, Name, Ref},
+-spec unregister_request_will_be_sent_handler(Name :: chrme_session:name(), Ref :: reference()) -> ok.
+unregister_request_will_be_sent_handler(Name, Ref) ->
+    CallbackName = {chrme_network, register_request_will_be_sent_handler, Name, Ref},
     chrme_ws_apic:remove_callback(Name, CallbackName),
     ok.
