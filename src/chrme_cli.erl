@@ -133,6 +133,68 @@ do_evaluate(_, _) ->
     io:format("Usage: chrme evaluate [--id <target-id>] <expression>~n", []),
     halt(?EXIT_USAGE_ERROR).
 
+%% Stream all protocol events for a target (new or existing)
+do_events(Opts, ["--id", IdStr]) ->
+    Host = maps:get(host, Opts),
+    Port = maps:get(port, Opts),
+    Name = cli_events,
+    TargetId = list_to_binary(IdStr),
+    case chrme_session:attach(Name, Host, Port, TargetId) of
+        {ok, _Session} ->
+            chrme_session:await_start(Name),
+            _ = chrme_cdp:call(Name, <<"Page.enable">>, #{}),
+            _ = chrme_cdp:call(Name, <<"Network.enable">>, #{}),
+            _ = chrme_cdp:call(Name, <<"Runtime.enable">>, #{}),
+            _ = chrme_cdp:call(Name, <<"DOM.enable">>, #{}),
+            Ref = make_ref(),
+            CallbackName = {cli_events, Name, Ref},
+            CallbackFun = fun
+                (stop) -> true;
+                (Msg) ->
+                    io:format("~s~n", [jsone:encode(Msg)]),
+                    true
+            end,
+            chrme_ws_apic:add_callback(Name, {CallbackName, CallbackFun}),
+            io:format("Streaming events for target ~ts. Press Ctrl+C to quit.~n", [TargetId]),
+            events_loop();
+        {error, Err} ->
+            io:format("Error attaching to target ~s: ~p~n", [IdStr, Err]),
+            halt(?EXIT_ERROR)
+    end;
+do_events(Opts, ["-i", IdStr]) ->
+    do_events(Opts, ["--id", IdStr]);
+do_events(Opts, []) ->
+    Host = maps:get(host, Opts),
+    Port = maps:get(port, Opts),
+    Name = cli_events,
+    case chrme_session:start(Name, Host, Port, list_to_binary("about:blank")) of
+        {ok, _Session} ->
+            chrme_session:await_start(Name),
+            _ = chrme_cdp:call(Name, <<"Page.enable">>, #{}),
+            _ = chrme_cdp:call(Name, <<"Network.enable">>, #{}),
+            _ = chrme_cdp:call(Name, <<"Runtime.enable">>, #{}),
+            _ = chrme_cdp:call(Name, <<"DOM.enable">>, #{}),
+            Ref = make_ref(),
+            CallbackName = {cli_events, Name, Ref},
+            CallbackFun = fun
+                (stop) -> true;
+                (Msg) ->
+                    io:format("~s~n", [jsone:encode(Msg)]),
+                    true
+            end,
+            chrme_ws_apic:add_callback(Name, {CallbackName, CallbackFun}),
+            io:format("Streaming events for new target. Press Ctrl+C to quit.~n", []),
+            events_loop();
+    _ ->
+        io:format("Usage: chrme events [--id <target-id>]~n", []),
+        halt(?EXIT_USAGE_ERROR)
+    end.
+
+events_loop() ->
+    receive
+        _ -> events_loop()
+    end.
+
 print_usage() ->
     io:format("Usage: chrme [OPTIONS] <command> [args]~n~n", []),
     io:format("Options:~n", []),
@@ -156,7 +218,7 @@ print_usage() ->
     io:format("  evaluate    Evaluate JavaScript~n", []),
     io:format("  dom         Dump DOM (not implemented)~n", []),
     io:format("  pdf         Print to PDF (not implemented)~n", []),
-    io:format("  events      Stream events (not implemented)~n", []),
+    io:format("  events      Stream events~n", []),
     io:format("  help        Show this message or help for a specific command~n", []),
     io:format("  version     Show version~n", []).
 
@@ -266,6 +328,7 @@ dispatch(Opts, CmdArgs) ->
         evaluate -> do_evaluate(Opts, CmdArgs);
         help -> do_help(CmdArgs), halt(?EXIT_OK);
         version -> print_version(), halt(?EXIT_OK);
+        events -> do_events(Opts, CmdArgs);
         _ ->
             io:format("Unknown command: ~s~n", [Cmd]),
             print_usage(),
@@ -359,6 +422,7 @@ do_help([Cmd|_]) ->
         new -> io:format("Usage: chrme new <url> [options]\n", []);
         navigate -> io:format("Usage: chrme navigate <url> [options]\n", []);
         evaluate -> io:format("Usage: chrme evaluate [--id <target-id>] <expression>\n", []);
+        events -> io:format("Usage: chrme events [--id <target-id>]\n", []);
         help -> io:format("Usage: chrme help [command]\n", []);
         version -> io:format("Usage: chrme version\n", []);
         _ -> io:format("Unknown command: ~s~n", [Cmd])
