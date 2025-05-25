@@ -1,5 +1,5 @@
 -module(chrme_session).
--export([start/4, start_link/4, await_start/1, stop/1]).
+-export([start/4, start_link/4, attach/4, await_start/1, stop/1]).
 
 -export_type([name/0, session/0]).                                          
 -type name() :: chrme_ws_apic:name().                                       
@@ -32,6 +32,27 @@ start_(Name, Host, Port, Url, IsLink) ->
                     chrme_ws_apic:start(WsOpts)
             end,
             {ok, #{name => Name, host => WsHost, port => WsPort, target_id => Id}};
+        Error ->
+            Error
+    end.
+
+%% Attach to an existing debugging target by its ID
+-spec attach(name(), klsn:binstr(), integer(), klsn:binstr()) -> {ok, session()} | {error, term()}.
+attach(Name, Host, Port, TargetId) ->
+    case chrme_http_apic:list_targets(Host, Port) of
+        {ok, Targets} ->
+            case [M || M <- Targets, maps:get(<<"id">>, M) =:= TargetId] of
+                [TargetMap] ->
+                    WsUrl = maps:get(<<"webSocketDebuggerUrl">>, TargetMap),
+                    {WsHost, WsPort, WsPath} = chrme_util:parse_ws_url(WsUrl),
+                    WsOpts = #{name => Name, host => WsHost, port => WsPort, uri => WsPath},
+                    {ok, _Pid} = chrme_ws_apic:start(WsOpts),
+                    {ok, #{name => Name, host => WsHost, port => WsPort, target_id => TargetId}};
+                [] ->
+                    {error, {no_such_target, TargetId}};
+                _  ->
+                    {error, {ambiguous_targets, TargetId}}
+            end;
         Error ->
             Error
     end.
