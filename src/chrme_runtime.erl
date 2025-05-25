@@ -36,6 +36,7 @@ remove_binding(Name, BindingName0) ->
     chrme_cdp:call(Name, <<"Runtime.removeBinding">>, #{name => NameBin}).
 
 %% Subscribe to exceptionThrown events
+-spec register_exception_thrown_handler(Name :: chrme_session:name(), Fun :: fun((map()) -> any())) -> reference().
 register_exception_thrown_handler(Name, Fun) ->
     Ref = make_ref(),
     CallbackName = {chrme_runtime, register_exception_thrown_handler, Name, Ref},
@@ -49,6 +50,8 @@ register_exception_thrown_handler(Name, Fun) ->
     chrme_ws_apic:add_callback(Name, {CallbackName, CallbackFun}),
     Ref.
 
+%% Unsubscribe from exceptionThrown events
+-spec unregister_exception_thrown_handler(Name :: chrme_session:name(), Ref :: reference()) -> ok.
 unregister_exception_thrown_handler(Name, Ref) ->
     CallbackName = {chrme_runtime, register_exception_thrown_handler, Name, Ref},
     chrme_ws_apic:remove_callback(Name, CallbackName),
