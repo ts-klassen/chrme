@@ -1,6 +1,6 @@
 -module(chrme_page).
 -export([enable/1, navigate/2, reload/1, stop_loading/1, capture_screenshot/1,
-         on_frame_navigated/2, off_frame_navigated/2]).
+         register_frame_navigated_handler/2, unregister_frame_navigated_handler/2]).
 
 -export_type([navigation/0]).
 -type navigation() :: #{
@@ -57,10 +57,10 @@ capture_screenshot(Name) ->
     end.
 
 %% Subscribe to frameNavigated events
--spec on_frame_navigated(Name :: chrme_session:name(), Fun :: fun((map()) -> any())) -> reference().
-on_frame_navigated(Name, Fun) ->
+-spec register_frame_navigated_handler(Name :: chrme_session:name(), Fun :: fun((map()) -> any())) -> reference().
+register_frame_navigated_handler(Name, Fun) ->
     Ref = make_ref(),
-    CallbackName = {chrme_page, on_frame_navigated, Name, Ref},
+    CallbackName = {chrme_page, register_frame_navigated_handler, Name, Ref},
     CallbackFun = fun
         (stop) ->
             false;
@@ -73,8 +73,8 @@ on_frame_navigated(Name, Fun) ->
     chrme_ws_apic:add_callback(Name, {CallbackName, CallbackFun}),
     Ref.
 
--spec off_frame_navigated(Name :: chrme_session:name(), Ref :: reference()) -> ok.
-off_frame_navigated(Name, Ref) ->
-    CallbackName = {chrme_page, on_frame_navigated, Name, Ref},
+-spec unregister_frame_navigated_handler(Name :: chrme_session:name(), Ref :: reference()) -> ok.
+unregister_frame_navigated_handler(Name, Ref) ->
+    CallbackName = {chrme_page, register_frame_navigated_handler, Name, Ref},
     chrme_ws_apic:remove_callback(Name, CallbackName),
     ok.
