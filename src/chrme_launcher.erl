@@ -1,15 +1,18 @@
 -module(chrme_launcher).
 -behaviour(gen_server).
 
--export([start/1, start_link/1, stop/1]).
+-export([start/1, start_link/1, await_start/1, stop/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 -export_type([
         options/0
       , state/0
+      , name/0
     ]).
 
+-type name() :: term().
+
 -type options() :: #{
-        name           := term()
+        name           := name()
       , executable     => klsn:binstr()
       , remote_port    => 0..65535
       , user_data_dir  => klsn:binstr()
@@ -32,7 +35,21 @@ start_link(Options) ->
     Name = maps:get(name, Options),
     gen_server:start_link({global, Name}, ?MODULE, Options, []).
 
--spec stop(term()) -> ok.
+-spec await_start(name()) -> ok.
+await_start(Name) ->
+    % This also makes sure server exists.
+    Options = gen_server:call({global, Name}, get_options),
+    Host = <<"localhost">>,
+    Port = maps:get(remote_port, Options),
+    case chrme_http_apic:version(Host, Port) of
+        {ok, _} ->
+            ok;
+        _Error ->
+            timer:sleep(100),
+            await_start(Name)
+    end.
+
+-spec stop(name()) -> ok.
 stop(Name) ->
     gen_server:stop({global, Name}).
 
@@ -79,8 +96,8 @@ normalize_options(Options) ->
       , headless      => maps:get(headless, Options, true)
     }.
 
-handle_call(_Request, _From, State) ->
-    {reply, ok, State}.
+handle_call(get_options, _From, State) ->
+    {reply, maps:get(opts, State), State}.
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
