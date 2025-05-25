@@ -133,6 +133,76 @@ do_evaluate(_, _) ->
     io:format("Usage: chrme evaluate [--id <target-id>] <expression>~n", []),
     halt(?EXIT_USAGE_ERROR).
 
+%% Dump the DOM of a target (new or existing)
+do_dom(Opts, ["--id", IdStr]) ->
+    Host = maps:get(host, Opts),
+    Port = maps:get(port, Opts),
+    Name = cli_dom,
+    TargetId = list_to_binary(IdStr),
+    case chrme_session:attach(Name, Host, Port, TargetId) of
+        {ok, _Session} ->
+            chrme_session:await_start(Name),
+            _ = chrme_cdp:call(Name, <<"DOM.enable">>, #{}),
+            case chrme_dom:get_document(Name) of
+                {ok, Doc} ->
+                    NodeId = maps:get(<<"nodeId">>, Doc),
+                    case chrme_dom:get_outer_html(Name, NodeId) of
+                        {ok, Html} ->
+                            io:format("~ts~n", [Html]),
+                            halt(?EXIT_OK);
+                        {error, Err} ->
+                            io:format("DOM dump error: ~p~n", [Err]),
+                            halt(?EXIT_ERROR)
+                    end;
+                {error, Err} ->
+                    io:format("Error getting document: ~p~n", [Err]),
+                    halt(?EXIT_ERROR)
+            end;
+        {error, Err} ->
+            io:format("Error attaching to target ~s: ~p~n", [IdStr, Err]),
+            halt(?EXIT_ERROR)
+    end;
+do_dom(Opts, ["-i", IdStr]) ->
+    do_dom(Opts, ["--id", IdStr]);
+do_dom(Opts, [UrlStr]) ->
+    Host = maps:get(host, Opts),
+    Port = maps:get(port, Opts),
+    Name = cli_dom,
+    Url = list_to_binary(UrlStr),
+    case chrme_session:start(Name, Host, Port, Url) of
+        {ok, _Session} ->
+            chrme_session:await_start(Name),
+            _ = chrme_cdp:call(Name, <<"Page.enable">>, #{}),
+            _ = chrme_cdp:call(Name, <<"DOM.enable">>, #{}),
+            case chrme_page:navigate(Name, Url) of
+                {ok, _Nav} ->
+                    case chrme_dom:get_document(Name) of
+                        {ok, Doc} ->
+                            NodeId = maps:get(<<"nodeId">>, Doc),
+                            case chrme_dom:get_outer_html(Name, NodeId) of
+                                {ok, Html} ->
+                                    io:format("~ts~n", [Html]),
+                                    halt(?EXIT_OK);
+                                {error, Err} ->
+                                    io:format("DOM dump error: ~p~n", [Err]),
+                                    halt(?EXIT_ERROR)
+                            end;
+                        {error, Err} ->
+                            io:format("Error getting document: ~p~n", [Err]),
+                            halt(?EXIT_ERROR)
+                    end;
+                {error, Err} ->
+                    io:format("Navigation error: ~p~n", [Err]),
+                    halt(?EXIT_ERROR)
+            end;
+        {error, Err} ->
+            io:format("Error starting session: ~p~n", [Err]),
+            halt(?EXIT_ERROR)
+    end;
+do_dom(_, _) ->
+    io:format("Usage: chrme dom [--id <target-id>] <url>~n", []),
+    halt(?EXIT_USAGE_ERROR).
+
 %% Stream all protocol events for a target (new or existing)
 do_events(Opts, ["--id", IdStr]) ->
     Host = maps:get(host, Opts),
@@ -216,7 +286,7 @@ print_usage() ->
     io:format("  navigate    Navigate a new page to a URL (supports --id)~n", []),
     io:format("  screenshot  Capture a screenshot (not implemented)~n", []),
     io:format("  evaluate    Evaluate JavaScript~n", []),
-    io:format("  dom         Dump DOM (not implemented)~n", []),
+    io:format("  dom         Dump DOM~n", []),
     io:format("  pdf         Print to PDF (not implemented)~n", []),
     io:format("  events      Stream events~n", []),
     io:format("  help        Show this message or help for a specific command~n", []),
@@ -326,6 +396,7 @@ dispatch(Opts, CmdArgs) ->
         new -> do_new(Opts, CmdArgs);
         navigate -> do_navigate(Opts, CmdArgs);
         evaluate -> do_evaluate(Opts, CmdArgs);
+        dom -> do_dom(Opts, CmdArgs);
         help -> do_help(CmdArgs), halt(?EXIT_OK);
         version -> print_version(), halt(?EXIT_OK);
         events -> do_events(Opts, CmdArgs);
@@ -422,6 +493,7 @@ do_help([Cmd|_]) ->
         new -> io:format("Usage: chrme new <url> [options]\n", []);
         navigate -> io:format("Usage: chrme navigate <url> [options]\n", []);
         evaluate -> io:format("Usage: chrme evaluate [--id <target-id>] <expression>\n", []);
+        dom -> io:format("Usage: chrme dom [--id <target-id>] <url>\n", []);
         events -> io:format("Usage: chrme events [--id <target-id>]\n", []);
         help -> io:format("Usage: chrme help [command]\n", []);
         version -> io:format("Usage: chrme version\n", []);
