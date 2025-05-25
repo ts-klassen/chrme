@@ -1,10 +1,10 @@
- -module(chrme_cli).
+-module(chrme_cli).
 
- -export([main/1]).
+-export([main/1]).
 
- -define(EXIT_OK, 0).
- -define(EXIT_USAGE_ERROR, 1).
- -define(EXIT_ERROR, 2).
+-define(EXIT_OK, 0).
+-define(EXIT_USAGE_ERROR, 1).
+-define(EXIT_ERROR, 2).
 
 main(Args) ->
     case Args of
