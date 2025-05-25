@@ -1,5 +1,5 @@
 -module(chrme_page).
--export([navigate/2, reload/1, stop_loading/1, capture_screenshot/1,
+-export([enable/1, navigate/2, reload/1, stop_loading/1, capture_screenshot/1,
          on_frame_navigated/2, off_frame_navigated/2]).
 
 -export_type([navigation/0]).
@@ -7,6 +7,16 @@
     frame_id  := klsn:binstr(),
     loader_id := klsn:binstr() | undefined
 }.
+
+%% ------------------------------------------------------------------
+%% Page domain utilities
+%% ------------------------------------------------------------------
+
+%% Enable the Page domain so that events like Page.frameNavigated will be
+%% delivered. Mirrors chrme_network:enable/1.
+-spec enable(Name :: chrme_session:name()) -> {ok, map()} | {error, term()}.
+enable(Name) ->
+    chrme_cdp:call(Name, <<"Page.enable">>, #{}).
 
 %% Navigate the current page to a URL
 -spec navigate(Name :: chrme_session:name(), Url :: klsn:binstr()) -> {ok, navigation()} | {error, term()}.
