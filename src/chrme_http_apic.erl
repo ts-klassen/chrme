@@ -3,19 +3,9 @@
 -module(chrme_http_apic).
 -export([list_targets/2, version/2, new_target/3, close_target/3]).
 
-%% Ensure httpc is started
--spec ensure_started() -> ok | {error, term()}.
-ensure_started() ->
-    case application:ensure_all_started(inets) of
-        {ok, _} -> ok;
-        {error, {already_started, _}} -> ok;
-        Error -> Error
-    end.
-
 %% List available debugging targets
 -spec list_targets(Host :: klsn:binstr(), Port :: integer()) -> {ok, [map()]} | {error, term()}.
 list_targets(Host, Port) ->
-    ensure_started(),
     %% Host must be binary; Path is binary
     Url = build_url(Host, Port, <<"/json">>),
     case httpc:request(get, {Url, []}, [], [{body_format, binary}]) of
@@ -30,7 +20,6 @@ list_targets(Host, Port) ->
 %% Query Chrome version info
 -spec version(Host :: klsn:binstr(), Port :: integer()) -> {ok, map()} | {error, term()}.
 version(Host, Port) ->
-    ensure_started(),
     Url = build_url(Host, Port, <<"/json/version">>),
     case httpc:request(get, {Url, []}, [], [{body_format, binary}]) of
         {ok, {{_, 200, _}, _, Body}} ->
@@ -44,10 +33,9 @@ version(Host, Port) ->
 %% Create a new debugging target
 -spec new_target(Host :: klsn:binstr(), Port :: integer(), Url0 :: klsn:binstr()) -> {ok, map()} | {error, term()}.
 new_target(Host, Port, Url0) ->
-    ensure_started(),
     %% Host and Url0 must be binaries
     Url = cow_qs:urlencode(Url0),
-    PathBin = <<"/json/new?url=", Url/binary>>,  %% build path as binary
+    PathBin = <<"/json/new?", Url/binary>>,  %% build path as binary
     FullUrl = build_url(Host, Port, PathBin),
     %% new_target requires HTTP PUT, not GET
     case httpc:request(put, {FullUrl, [], "application/json", <<>>}, [], [{body_format, binary}]) of
@@ -62,7 +50,6 @@ new_target(Host, Port, Url0) ->
 %% Close an existing debugging target
 -spec close_target(Host :: klsn:binstr(), Port :: integer(), TargetId0 :: klsn:binstr()) -> {ok, true} | {error, term()}.
 close_target(Host, Port, TargetId0) ->
-    ensure_started(),
     %% Host and TargetId0 must be binaries
     PathBin = <<"/json/close/", TargetId0/binary>>,
     Url = build_url(Host, Port, PathBin),
