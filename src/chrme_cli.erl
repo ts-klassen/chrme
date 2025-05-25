@@ -37,54 +37,85 @@ main(Args) ->
             end
     end.
 
-do_navigate(Opts, CmdArgs) ->
-    case CmdArgs of
-        [UrlStr] ->
-            Host = maps:get(host, Opts),
-            Port = maps:get(port, Opts),
-            Name = cli_nav,
-            Url = list_to_binary(UrlStr),
-            case chrme_session:start(Name, Host, Port, Url) of
-                {ok, _Session} ->
-                    chrme_session:await_start(Name),
-                    _ = chrme_page:enable(Name),
-                    case chrme_page:navigate(Name, Url) of
-                        {ok, Nav} ->
-                            Frame = maps:get(frame_id, Nav),
-                            Loader = maps:get(loader_id, Nav),
-                            io:format("Navigated to ~ts. FrameId=~ts loaderId=~p~n", [Url, Frame, Loader]),
-                            halt(?EXIT_OK);
-                        Err ->
-                            io:format("Navigation error: ~p~n", [Err]),
-                            halt(?EXIT_ERROR)
-                    end;
-                {error, Err} ->
-                    io:format("Error starting session: ~p~n", [Err]),
+do_navigate(Opts, ["--id", IdStr, UrlStr]) ->
+    Host = maps:get(host, Opts),
+    Port = maps:get(port, Opts),
+    Name = cli_nav,
+    TargetId = list_to_binary(IdStr),
+    case chrme_session:attach(Name, Host, Port, TargetId) of
+        {ok, _Session} ->
+            chrme_session:await_start(Name),
+            _ = chrme_page:enable(Name),
+            case chrme_page:navigate(Name, list_to_binary(UrlStr)) of
+                {ok, Nav} ->
+                    Frame = maps:get(frame_id, Nav),
+                    Loader = maps:get(loader_id, Nav),
+                    io:format("Navigated existing target ~ts to ~ts. FrameId=~ts loaderId=~p~n",
+                              [TargetId, UrlStr, Frame, Loader]),
+                    halt(?EXIT_OK);
+                Err ->
+                    io:format("Navigation error: ~p~n", [Err]),
                     halt(?EXIT_ERROR)
             end;
-        _ ->
-            io:format("Usage: chrme navigate <url>~n", []),
-            halt(?EXIT_USAGE_ERROR)
-    end.
+        {error, Err} ->
+            io:format("Error attaching to target ~ts: ~p~n", [TargetId, Err]),
+            halt(?EXIT_ERROR)
+    end;
+do_navigate(Opts, ["-i", IdStr, UrlStr]) ->
+    do_navigate(Opts, ["--id", IdStr, UrlStr]);
+do_navigate(Opts, [UrlStr]) ->
+    Host = maps:get(host, Opts),
+    Port = maps:get(port, Opts),
+    Name = cli_nav,
+    Url = list_to_binary(UrlStr),
+    case chrme_session:start(Name, Host, Port, Url) of
+        {ok, _Session} ->
+            chrme_session:await_start(Name),
+            _ = chrme_page:enable(Name),
+            case chrme_page:navigate(Name, Url) of
+                {ok, Nav} ->
+                    Frame = maps:get(frame_id, Nav),
+                    Loader = maps:get(loader_id, Nav),
+                    io:format("Navigated to ~ts. FrameId=~ts loaderId=~p~n", [Url, Frame, Loader]),
+                    halt(?EXIT_OK);
+                Err ->
+                    io:format("Navigation error: ~p~n", [Err]),
+                    halt(?EXIT_ERROR)
+            end;
+        {error, Err} ->
+            io:format("Error starting session: ~p~n", [Err]),
+            halt(?EXIT_ERROR)
+    end;
+do_navigate(_, _) ->
+    io:format("Usage: chrme navigate <url> | --id <target-id> <url>~n", []),
+    halt(?EXIT_USAGE_ERROR).
 
 print_usage() ->
-    Usage = "\
-Usage: chrme <command> [options]\n\
-\n\
-Commands:\n\
-  launch      Launch a new Chrome instance\n\
-  list        List open debugging targets\n\
-  new         Create a new debugging target\n\
-  navigate    Navigate a new page to a URL (not implemented)\n\
-  screenshot  Capture a screenshot (not implemented)\n\
-  evaluate    Evaluate JavaScript (not implemented)\n\
-  dom         Dump DOM (not implemented)\n\
-  pdf         Print to PDF (not implemented)\n\
-  events      Stream events (not implemented)\n\
-  help        Show this message or help for a specific command\n\
-  version     Show version\n\
-",
-    io:format("~s", [Usage]).
+    io:format("Usage: chrme [OPTIONS] <command> [args]~n~n", []),
+    io:format("Options:~n", []),
+    io:format("  -h, --help                Show this help message~n", []),
+    io:format("  -V, --version             Show version~n", []),
+    io:format("  -H, --host <host>         Debugging HTTP host (default \"localhost\")~n", []),
+    io:format("  -P, --port <port>         Debugging HTTP port (default 9222)~n", []),
+    io:format("  -e, --endpoint <ws_url>   WebSocket debugger URL (attach only)~n", []),
+    io:format("  -i, --id <target-id>      Attach to an existing target ID~n", []),
+    io:format("  -b, --chrome-binary <path> Path to Chrome executable (launch only)~n", []),
+    io:format("  --headless                Launch Chrome in headless mode (default true)~n", []),
+    io:format("  --no-headless             Launch Chrome with UI~n", []),
+    io:format("  --user-data-dir <dir>     Chrome user data directory~n", []),
+    io:format("  -v, --verbose             Enable verbose output~n~n", []),
+    io:format("Commands:~n", []),
+    io:format("  launch      Launch a new Chrome instance~n", []),
+    io:format("  list        List open debugging targets~n", []),
+    io:format("  new         Create a new debugging target~n", []),
+    io:format("  navigate    Navigate a new page to a URL (supports --id)~n", []),
+    io:format("  screenshot  Capture a screenshot (not implemented)~n", []),
+    io:format("  evaluate    Evaluate JavaScript (not implemented)~n", []),
+    io:format("  dom         Dump DOM (not implemented)~n", []),
+    io:format("  pdf         Print to PDF (not implemented)~n", []),
+    io:format("  events      Stream events (not implemented)~n", []),
+    io:format("  help        Show this message or help for a specific command~n", []),
+    io:format("  version     Show version~n", []).
 
 print_version() ->
     _ = case application:load(chrme) of
