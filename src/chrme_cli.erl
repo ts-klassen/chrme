@@ -89,6 +89,49 @@ do_navigate(Opts, [UrlStr]) ->
 do_navigate(_, _) ->
     io:format("Usage: chrme navigate <url> | --id <target-id> <url>~n", []),
     halt(?EXIT_USAGE_ERROR).
+   
+%% Evaluate JavaScript expression on a new or existing target
+do_evaluate(Opts, ["--id", IdStr | ExprParts]) ->
+    Host = maps:get(host, Opts),
+    Port = maps:get(port, Opts),
+    Name = cli_eval,
+    TargetId = list_to_binary(IdStr),
+    case chrme_session:attach(Name, Host, Port, TargetId) of
+        {ok, _Session} ->
+            chrme_session:await_start(Name),
+            _ = chrme_cdp:call(Name, <<"Runtime.enable">>, #{}),
+            Expr = list_to_binary(string:join(ExprParts, " ")),
+            case chrme_runtime:evaluate(Name, Expr) of
+                {ok, Result} -> io:format("~p~n", [Result]), halt(?EXIT_OK);
+                {error, Err} -> io:format("Evaluation error: ~p~n", [Err]), halt(?EXIT_ERROR)
+            end;
+        {error, Err} ->
+            io:format("Error attaching to target ~ts: ~p~n", [TargetId, Err]),
+            halt(?EXIT_ERROR)
+    end;
+do_evaluate(Opts, ["-i", IdStr | ExprParts]) ->
+    do_evaluate(Opts, ["--id", IdStr | ExprParts]);
+do_evaluate(Opts, ExprParts) when is_list(ExprParts) ->
+    Host = maps:get(host, Opts),
+    Port = maps:get(port, Opts),
+    Name = cli_eval,
+    %% Open a blank page by default
+    case chrme_session:start(Name, Host, Port, list_to_binary("about:blank")) of
+        {ok, _Session} ->
+            chrme_session:await_start(Name),
+            _ = chrme_cdp:call(Name, <<"Runtime.enable">>, #{}),
+            Expr = list_to_binary(string:join(ExprParts, " ")),
+            case chrme_runtime:evaluate(Name, Expr) of
+                {ok, Result} -> io:format("~p~n", [Result]), halt(?EXIT_OK);
+                {error, Err} -> io:format("Evaluation error: ~p~n", [Err]), halt(?EXIT_ERROR)
+            end;
+        {error, Err} ->
+            io:format("Error creating session: ~p~n", [Err]),
+            halt(?EXIT_ERROR)
+    end;
+do_evaluate(_, _) ->
+    io:format("Usage: chrme evaluate [--id <target-id>] <expression>~n", []),
+    halt(?EXIT_USAGE_ERROR).
 
 print_usage() ->
     io:format("Usage: chrme [OPTIONS] <command> [args]~n~n", []),
@@ -110,7 +153,7 @@ print_usage() ->
     io:format("  new         Create a new debugging target~n", []),
     io:format("  navigate    Navigate a new page to a URL (supports --id)~n", []),
     io:format("  screenshot  Capture a screenshot (not implemented)~n", []),
-    io:format("  evaluate    Evaluate JavaScript (not implemented)~n", []),
+    io:format("  evaluate    Evaluate JavaScript~n", []),
     io:format("  dom         Dump DOM (not implemented)~n", []),
     io:format("  pdf         Print to PDF (not implemented)~n", []),
     io:format("  events      Stream events (not implemented)~n", []),
@@ -220,6 +263,7 @@ dispatch(Opts, CmdArgs) ->
         list -> do_list(Opts, CmdArgs);
         new -> do_new(Opts, CmdArgs);
         navigate -> do_navigate(Opts, CmdArgs);
+        evaluate -> do_evaluate(Opts, CmdArgs);
         help -> do_help(CmdArgs), halt(?EXIT_OK);
         version -> print_version(), halt(?EXIT_OK);
         _ ->
@@ -314,6 +358,7 @@ do_help([Cmd|_]) ->
         list -> io:format("Usage: chrme list [options]\n", []);
         new -> io:format("Usage: chrme new <url> [options]\n", []);
         navigate -> io:format("Usage: chrme navigate <url> [options]\n", []);
+        evaluate -> io:format("Usage: chrme evaluate [--id <target-id>] <expression>\n", []);
         help -> io:format("Usage: chrme help [command]\n", []);
         version -> io:format("Usage: chrme version\n", []);
         _ -> io:format("Unknown command: ~s~n", [Cmd])
