@@ -283,7 +283,7 @@ print_usage() ->
     io:format("  launch      Launch a new Chrome instance~n", []),
     io:format("  list        List open debugging targets~n", []),
     io:format("  new         Create a new debugging target~n", []),
-    io:format("  navigate    Navigate a new page to a URL (supports --id)~n", []),
+    io:format("  navigate    Navigate a new page to a URL~n", []),
     io:format("  screenshot  Capture a screenshot (not implemented)~n", []),
     io:format("  evaluate    Evaluate JavaScript~n", []),
     io:format("  dom         Dump DOM~n", []),
