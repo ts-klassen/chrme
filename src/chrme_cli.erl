@@ -429,6 +429,7 @@ do_launch(Opts, CmdArgs) ->
             io:format("Error launching Chrome: ~p~n", [LaunchErr]),
             halt(?EXIT_ERROR)
     end,
+    timer:sleep(1000),
     chrme_launcher:await_start(Name),
     case chrme_http_apic:version(Host, Port) of
         {ok, V} ->
@@ -440,6 +441,7 @@ do_launch(Opts, CmdArgs) ->
         {error, VersionErr} ->
             io:format("Error fetching version: ~p~n", [VersionErr])
     end,
+    klsn_io:get_line(),
     halt(?EXIT_OK).
 
 do_list(Opts, _Args) ->
