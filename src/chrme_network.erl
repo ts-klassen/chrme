@@ -62,8 +62,18 @@ unregister_request_will_be_sent_handler(Name, Ref) ->
 %%  Await response body helper
 %% ------------------------------------------------------------------
 
--spec await_response_body(chrme_session:name(), request_id(), non_neg_integer()) ->
+-spec await_response_body(chrme_session:name(), request_id(), infinity | non_neg_integer()) ->
           {ok, binary(), boolean()} | {error, timeout | term()}.
+await_response_body(Name, ReqId, infinity) ->
+    %% Infinite wait: keep polling until success.
+    case get_response_body(Name, ReqId) of
+        {ok, _Body, _Enc} = Success ->
+            Success;
+        _ ->
+            timer:sleep(100),
+            await_response_body(Name, ReqId, infinity)
+    end;
+
 await_response_body(Name, ReqId, Timeout) when is_integer(Timeout), Timeout >= 0 ->
     Start = erlang:monotonic_time(millisecond),
     Poll = fun This() ->
@@ -85,7 +95,7 @@ await_response_body(Name, ReqId, Timeout) when is_integer(Timeout), Timeout >= 0
 -spec await_response_body(chrme_session:name(), request_id()) ->
           {ok, binary(), boolean()} | {error, timeout | term()}.
 await_response_body(Name, ReqId) ->
-    await_response_body(Name, ReqId, 5000).
+    await_response_body(Name, ReqId, infinity).
 
 %% ------------------------------------------------------------------
 %%  Convenience: fetch response body for a completed request.
