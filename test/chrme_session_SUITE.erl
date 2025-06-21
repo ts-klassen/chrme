@@ -3,12 +3,12 @@
 
 %% Exported callbacks --------------------------------------------------------
 
--export([all/0, simple/1, network_events/1, event_handler/1]).
+-export([all/0, simple/1, network_events/1, event_handler/1, response_body/1]).
 
 %% Test case list ------------------------------------------------------------
 
 all() ->
-    [simple, network_events, event_handler].
+    [simple, network_events, event_handler, response_body].
 
 %%---------------------------------------------------------------------------
 %% Test cases
@@ -131,6 +131,70 @@ simple(_Config) ->
         ok
     after
         chrme_launcher:stop(launch1)
+    end.
+
+%%---------------------------------------------------------------------------
+%% Test case: response_body (await_response_body helper)
+%%---------------------------------------------------------------------------
+
+response_body(_Config) ->
+    application:ensure_all_started(chrme),
+
+    %% Allocate free port
+    {ok, LSock} = gen_tcp:listen(0, [binary,{active,false}]),
+    {ok, {_, Port}} = inet:sockname(LSock),
+    ok = gen_tcp:close(LSock),
+
+    UserDataDir = list_to_binary(io_lib:format("/tmp/chrme_ud_rb_~p", [Port])),
+
+    LauncherOpts = #{ name => launch_rb,
+                      remote_port => Port,
+                      user_data_dir => UserDataDir,
+                      headless => true,
+                      extra_args => [ <<"--remote-allow-origins=*">> ] },
+
+    {ok, _} = chrme_launcher:start_link(LauncherOpts),
+    ok = chrme_launcher:await_start(launch_rb),
+
+    try
+        {ok, SessionMap} = chrme_session:start_link(session_rb,
+                                            <<"localhost">>,
+                                            Port,
+                                            <<"https://example.com">>),
+        ok = chrme_session:await_start(session_rb),
+
+        Self = self(),
+
+        %% Capture requestId via responseReceived event
+        RefResp = chrme_network:register_response_received_handler(session_rb, fun(Params) ->
+            RespInfo = maps:get(<<"response">>, Params, #{}),
+            case maps:get(<<"url">>, RespInfo, <<>> ) of
+                <<"https://example.com/">> ->
+                    ReqId = maps:get(<<"requestId">>, Params, undefined),
+                    Self ! {rid, ReqId},
+                    true;
+                _ -> false
+            end
+        end),
+
+        {ok, _} = chrme_network:enable(session_rb),
+
+        _ = chrme_runtime:evaluate(session_rb, <<"fetch('https://example.com/')">>),
+
+        ReqId = receive
+            {rid, R} -> R
+        after 5000 -> ct:fail(missing_request_id)
+        end,
+
+        {ok, Body, _Encoded} = chrme_network:await_response_body(session_rb, ReqId, 5000),
+        true = byte_size(Body) > 0,
+
+        chrme_network:unregister_response_received_handler(session_rb, RefResp),
+
+        ok = chrme_session:stop(SessionMap),
+        ok
+    after
+        chrme_launcher:stop(launch_rb)
     end.
 
 %%---------------------------------------------------------------------------

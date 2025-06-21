@@ -1,11 +1,15 @@
 -module(chrme_network).
+
+-export_type([request_id/0]).
+
+-type request_id() :: klsn:binstr().
 -export([enable/1, disable/1, set_request_interception/2,
          continue_intercepted_request/2, emulate_network_conditions/2,
          register_request_will_be_sent_handler/2, unregister_request_will_be_sent_handler/2,
          register_event_handler/2, unregister_event_handler/2,
          register_response_received_handler/2, unregister_response_received_handler/2,
          register_loading_finished_handler/2, unregister_loading_finished_handler/2,
-         get_response_body/2]).
+         get_response_body/2, await_response_body/3, await_response_body/2]).
 
 %% Enable network tracking
 -spec enable(Name :: chrme_session:name()) -> {ok, map()} | {error, term()}.
@@ -23,7 +27,7 @@ set_request_interception(Name, Patterns) ->
     chrme_cdp:call(Name, <<"Network.setRequestInterception">>, #{patterns => Patterns}).
 
 %% Continue an intercepted request
--spec continue_intercepted_request(Name :: chrme_session:name(), RequestId :: klsn:binstr()) -> {ok, map()} | {error, term()}.
+-spec continue_intercepted_request(Name :: chrme_session:name(), RequestId :: request_id()) -> {ok, map()} | {error, term()}.
 continue_intercepted_request(Name, RequestId) ->
     chrme_cdp:call(Name, <<"Network.continueInterceptedRequest">>, #{requestId => RequestId}).
 
@@ -55,6 +59,35 @@ unregister_request_will_be_sent_handler(Name, Ref) ->
     ok.
 
 %% ------------------------------------------------------------------
+%%  Await response body helper
+%% ------------------------------------------------------------------
+
+-spec await_response_body(chrme_session:name(), request_id(), non_neg_integer()) ->
+          {ok, binary(), boolean()} | {error, timeout | term()}.
+await_response_body(Name, ReqId, Timeout) when is_integer(Timeout), Timeout >= 0 ->
+    Start = erlang:monotonic_time(millisecond),
+    Poll = fun This() ->
+        case get_response_body(Name, ReqId) of
+            {ok, _Body, _Enc} = Success ->
+                Success;
+            _ ->
+                Now = erlang:monotonic_time(millisecond),
+                case Now - Start >= Timeout of
+                    true -> {error, timeout};
+                    false ->
+                        timer:sleep(100),
+                        This()
+                end
+        end
+    end,
+    Poll().
+
+-spec await_response_body(chrme_session:name(), request_id()) ->
+          {ok, binary(), boolean()} | {error, timeout | term()}.
+await_response_body(Name, ReqId) ->
+    await_response_body(Name, ReqId, 5000).
+
+%% ------------------------------------------------------------------
 %%  Convenience: fetch response body for a completed request.
 %%  Wraps the CDP method Network.getResponseBody
 %% ------------------------------------------------------------------
@@ -64,7 +97,7 @@ unregister_request_will_be_sent_handler(Name, Ref) ->
 %% can decide whether to decode.
 
 -spec get_response_body(Name :: chrme_session:name(),
-                       RequestId :: klsn:binstr()) ->
+                       RequestId :: request_id()) ->
           {ok, binary(), boolean()} | {error, term()}.
 get_response_body(Name, RequestId) ->
     case chrme_cdp:call(Name, <<"Network.getResponseBody">>, #{requestId => RequestId}) of
