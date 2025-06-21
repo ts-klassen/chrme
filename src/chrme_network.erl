@@ -23,7 +23,7 @@ set_request_interception(Name, Patterns) ->
     chrme_cdp:call(Name, <<"Network.setRequestInterception">>, #{patterns => Patterns}).
 
 %% Continue an intercepted request
--spec continue_intercepted_request(Name :: chrme_session:name(), RequestId :: term()) -> {ok, map()} | {error, term()}.
+-spec continue_intercepted_request(Name :: chrme_session:name(), RequestId :: klsn:binstr()) -> {ok, map()} | {error, term()}.
 continue_intercepted_request(Name, RequestId) ->
     chrme_cdp:call(Name, <<"Network.continueInterceptedRequest">>, #{requestId => RequestId}).
 
@@ -64,7 +64,7 @@ unregister_request_will_be_sent_handler(Name, Ref) ->
 %% can decide whether to decode.
 
 -spec get_response_body(Name :: chrme_session:name(),
-                       RequestId :: term()) ->
+                       RequestId :: klsn:binstr()) ->
           {ok, binary(), boolean()} | {error, term()}.
 get_response_body(Name, RequestId) ->
     case chrme_cdp:call(Name, <<"Network.getResponseBody">>, #{requestId => RequestId}) of
