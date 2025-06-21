@@ -1,7 +1,8 @@
 -module(chrme_network).
 -export([enable/1, disable/1, set_request_interception/2,
          continue_intercepted_request/2, emulate_network_conditions/2,
-         register_request_will_be_sent_handler/2, unregister_request_will_be_sent_handler/2]).
+         register_request_will_be_sent_handler/2, unregister_request_will_be_sent_handler/2,
+         register_event_handler/2, unregister_event_handler/2]).
 
 %% Enable network tracking
 -spec enable(Name :: chrme_session:name()) -> {ok, map()} | {error, term()}.
@@ -35,7 +36,7 @@ register_request_will_be_sent_handler(Name, Fun) ->
     CallbackName = {chrme_network, register_request_will_be_sent_handler, Name, Ref},
     CallbackFun = fun
         (stop) -> false;
-        (Msg = #{<<"method">> := <<"Network.requestWillBeSent">>, <<"params">> := Params}) ->
+        (_Msg = #{<<"method">> := <<"Network.requestWillBeSent">>, <<"params">> := Params}) ->
             Fun(Params),
             true;
         (_) -> false
@@ -47,5 +48,39 @@ register_request_will_be_sent_handler(Name, Fun) ->
 -spec unregister_request_will_be_sent_handler(Name :: chrme_session:name(), Ref :: reference()) -> ok.
 unregister_request_will_be_sent_handler(Name, Ref) ->
     CallbackName = {chrme_network, register_request_will_be_sent_handler, Name, Ref},
+    chrme_ws_apic:remove_callback(Name, CallbackName),
+    ok.
+
+%% ------------------------------------------------------------------
+%%  New convenience: listen to *all* Network domain events.
+%% ------------------------------------------------------------------
+
+%% Subscribe to every "Network.*" event.
+-spec register_event_handler(Name :: chrme_session:name(),
+                             Fun  :: fun((map()) -> any())) -> reference().
+register_event_handler(Name, Fun) ->
+    Ref = make_ref(),
+    CallbackName = {chrme_network, register_event_handler, Name, Ref},
+    CallbackFun = fun
+        (stop) ->
+            false;
+        (Msg = #{<<"method">> := Method}) ->
+            case Method of
+                <<"Network.", _/binary>> ->
+                    Fun(Msg),
+                    true;
+                _ ->
+                    false
+            end;
+        (_) ->
+            false
+    end,
+    chrme_ws_apic:add_callback(Name, {CallbackName, CallbackFun}),
+    Ref.
+
+%% Unsubscribe from all Network.* events.
+-spec unregister_event_handler(Name :: chrme_session:name(), Ref :: reference()) -> ok.
+unregister_event_handler(Name, Ref) ->
+    CallbackName = {chrme_network, register_event_handler, Name, Ref},
     chrme_ws_apic:remove_callback(Name, CallbackName),
     ok.

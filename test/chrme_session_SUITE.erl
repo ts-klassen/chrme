@@ -3,12 +3,12 @@
 
 %% Exported callbacks --------------------------------------------------------
 
--export([all/0, simple/1]).
+-export([all/0, simple/1, network_events/1]).
 
 %% Test case list ------------------------------------------------------------
 
 all() ->
-    [simple].
+    [simple, network_events].
 
 %%---------------------------------------------------------------------------
 %% Test cases
@@ -131,4 +131,72 @@ simple(_Config) ->
         ok
     after
         chrme_launcher:stop(launch1)
+    end.
+
+%%---------------------------------------------------------------------------
+%% Test case: network_events
+%%---------------------------------------------------------------------------
+
+network_events(_Config) ->
+    application:ensure_all_started(chrme),
+
+    %% Pick a free debugging port for Chrome.
+    {ok, LSock} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, {_, Port}} = inet:sockname(LSock),
+    ok = gen_tcp:close(LSock),
+
+    UserDataDir = list_to_binary(io_lib:format("/tmp/chrme_ud_ne_~p", [Port])),
+
+    LauncherOpts = #{ name          => launch_ne,
+                      remote_port   => Port,
+                      user_data_dir => UserDataDir,
+                      headless      => true,
+                      extra_args    => [ <<"--remote-allow-origins=*">> ]
+                    },
+    {ok, _PidLaunch} = chrme_launcher:start_link(LauncherOpts),
+    ok = chrme_launcher:await_start(launch_ne),
+
+    try
+        {ok, Session} = chrme_session:start_link(session_ne,
+                                           <<"localhost">>,
+                                           Port,
+                                           <<"https://example.com">>),
+        ok = chrme_session:await_start(session_ne),
+
+        Self = self(),
+
+        RefNet = chrme_network:register_event_handler(session_ne, fun(Event) ->
+            Method = maps:get(<<"method">>, Event, undefined),
+            case Method of
+                <<"Network.requestWillBeSent">> ->
+                    Self ! will;
+                <<"Network.responseReceived">> ->
+                    Self ! resp;
+                _ -> ok
+            end,
+            true
+        end),
+
+        {ok, _} = chrme_network:enable(session_ne),
+
+        %% Trigger a fetch inside the page.
+        _ = chrme_runtime:evaluate(session_ne, <<"fetch('https://example.com/')">>),
+
+        %% Wait for both requestWillBeSent and responseReceived to ensure multiple events.
+        receive
+            will -> ok
+        after 5000 -> ct:fail(missing_request_will_be_sent)
+        end,
+
+        receive
+            resp -> ok
+        after 5000 -> ct:fail(missing_response_received)
+        end,
+
+        chrme_network:unregister_event_handler(session_ne, RefNet),
+
+        ok = chrme_session:stop(Session),
+        ok
+    after
+        chrme_launcher:stop(launch_ne)
     end.
