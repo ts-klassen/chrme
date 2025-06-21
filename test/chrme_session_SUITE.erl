@@ -3,12 +3,12 @@
 
 %% Exported callbacks --------------------------------------------------------
 
--export([all/0, simple/1, network_events/1]).
+-export([all/0, simple/1, network_events/1, event_handler/1]).
 
 %% Test case list ------------------------------------------------------------
 
 all() ->
-    [simple, network_events].
+    [simple, network_events, event_handler].
 
 %%---------------------------------------------------------------------------
 %% Test cases
@@ -134,6 +134,73 @@ simple(_Config) ->
     end.
 
 %%---------------------------------------------------------------------------
+%% Test case: event_handler (generic Network.* handler)
+%%---------------------------------------------------------------------------
+
+event_handler(_Config) ->
+    application:ensure_all_started(chrme),
+
+    %% Allocate port for Chrome Remote Debugging
+    {ok, LSock} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, {_, Port}} = inet:sockname(LSock),
+    ok = gen_tcp:close(LSock),
+
+    UserDataDir = list_to_binary(io_lib:format("/tmp/chrme_ud_eh_~p", [Port])),
+
+    LauncherOpts = #{ name          => launch_eh,
+                      remote_port   => Port,
+                      user_data_dir => UserDataDir,
+                      headless      => true,
+                      extra_args    => [ <<"--remote-allow-origins=*">> ]
+                    },
+    {ok, _PidLaunch} = chrme_launcher:start_link(LauncherOpts),
+    ok = chrme_launcher:await_start(launch_eh),
+
+    try
+        {ok, Session} = chrme_session:start_link(session_eh,
+                                           <<"localhost">>,
+                                           Port,
+                                           <<"https://example.com">>),
+        ok = chrme_session:await_start(session_eh),
+
+        Self = self(),
+
+        %% Generic Network.* handler collecting two events
+        Ref = chrme_network:register_event_handler(session_eh, fun(Event) ->
+            case maps:get(<<"method">>, Event, undefined) of
+                <<"Network.requestWillBeSent">> ->
+                    Self ! will,
+                    true;
+                <<"Network.responseReceived">> ->
+                    Self ! resp,
+                    true;
+                _ -> false
+            end
+        end),
+
+        {ok, _} = chrme_network:enable(session_eh),
+
+        _ = chrme_runtime:evaluate(session_eh, <<"fetch('https://example.com/')">>),
+
+        receive
+            will -> ok
+        after 5000 -> ct:fail(missing_request_will_be_sent)
+        end,
+
+        receive
+            resp -> ok
+        after 5000 -> ct:fail(missing_response_received)
+        end,
+
+        chrme_network:unregister_event_handler(session_eh, Ref),
+
+        ok = chrme_session:stop(Session),
+        ok
+    after
+        chrme_launcher:stop(launch_eh)
+    end.
+
+%%---------------------------------------------------------------------------
 %% Test case: network_events
 %%---------------------------------------------------------------------------
 
@@ -165,21 +232,21 @@ network_events(_Config) ->
 
         Self = self(),
 
-        RefNet = chrme_network:register_event_handler(session_ne, fun(Event) ->
-            Method = maps:get(<<"method">>, Event, undefined),
-            case Method of
-                <<"Network.requestWillBeSent">> ->
-                    Self ! will;
-                <<"Network.responseReceived">> ->
-                    Params = maps:get(<<"params">>, Event, #{}),
-                    ReqId  = maps:get(<<"requestId">>, Params, undefined),
-                    Self ! {resp, ReqId};
-                <<"Network.loadingFinished">> ->
-                    Params = maps:get(<<"params">>, Event, #{}),
-                    ReqId  = maps:get(<<"requestId">>, Params, undefined),
-                    Self ! {load, ReqId};
-                _ -> ok
-            end,
+        %% Individual one-off handlers for each event type.
+        RefWill = chrme_network:register_request_will_be_sent_handler(session_ne, fun(_Params) ->
+            Self ! will,
+            true
+        end),
+
+        RefResp = chrme_network:register_response_received_handler(session_ne, fun(Params) ->
+            ReqId = maps:get(<<"requestId">>, Params, undefined),
+            Self ! {resp, ReqId},
+            true
+        end),
+
+        RefLoad = chrme_network:register_loading_finished_handler(session_ne, fun(Params) ->
+            ReqId = maps:get(<<"requestId">>, Params, undefined),
+            Self ! {load, ReqId},
             true
         end),
 
@@ -210,7 +277,9 @@ network_events(_Config) ->
         {ok, Body, _Encoded} = chrme_network:get_response_body(session_ne, ReqId),
         true = byte_size(Body) > 0,
 
-        chrme_network:unregister_event_handler(session_ne, RefNet),
+        chrme_network:unregister_request_will_be_sent_handler(session_ne, RefWill),
+        chrme_network:unregister_response_received_handler(session_ne, RefResp),
+        chrme_network:unregister_loading_finished_handler(session_ne, RefLoad),
 
         ok = chrme_session:stop(Session),
         ok

@@ -3,6 +3,8 @@
          continue_intercepted_request/2, emulate_network_conditions/2,
          register_request_will_be_sent_handler/2, unregister_request_will_be_sent_handler/2,
          register_event_handler/2, unregister_event_handler/2,
+         register_response_received_handler/2, unregister_response_received_handler/2,
+         register_loading_finished_handler/2, unregister_loading_finished_handler/2,
          get_response_body/2]).
 
 %% Enable network tracking
@@ -104,4 +106,52 @@ register_event_handler(Name, Fun) ->
 unregister_event_handler(Name, Ref) ->
     CallbackName = {chrme_network, register_event_handler, Name, Ref},
     chrme_ws_apic:remove_callback(Name, CallbackName),
+    ok.
+
+%% ------------------------------------------------------------------
+%%  One-off helpers for other common Network events
+%% ------------------------------------------------------------------
+
+%% responseReceived --------------------------------------------------
+
+-spec register_response_received_handler(chrme_session:name(), fun((map()) -> any())) -> reference().
+register_response_received_handler(Name, Fun) ->
+    Ref = make_ref(),
+    CbName = {chrme_network, response_received, Name, Ref},
+    CbFun = fun
+        (stop) -> false;
+        (#{<<"method">> := <<"Network.responseReceived">>, <<"params">> := Params}) ->
+            Fun(Params),
+            true;
+        (_) -> false
+    end,
+    chrme_ws_apic:add_callback(Name, {CbName, CbFun}),
+    Ref.
+
+-spec unregister_response_received_handler(chrme_session:name(), reference()) -> ok.
+unregister_response_received_handler(Name, Ref) ->
+    CbName = {chrme_network, response_received, Name, Ref},
+    chrme_ws_apic:remove_callback(Name, CbName),
+    ok.
+
+%% loadingFinished ---------------------------------------------------
+
+-spec register_loading_finished_handler(chrme_session:name(), fun((map()) -> any())) -> reference().
+register_loading_finished_handler(Name, Fun) ->
+    Ref = make_ref(),
+    CbName = {chrme_network, loading_finished, Name, Ref},
+    CbFun = fun
+        (stop) -> false;
+        (#{<<"method">> := <<"Network.loadingFinished">>, <<"params">> := Params}) ->
+            Fun(Params),
+            true;
+        (_) -> false
+    end,
+    chrme_ws_apic:add_callback(Name, {CbName, CbFun}),
+    Ref.
+
+-spec unregister_loading_finished_handler(chrme_session:name(), reference()) -> ok.
+unregister_loading_finished_handler(Name, Ref) ->
+    CbName = {chrme_network, loading_finished, Name, Ref},
+    chrme_ws_apic:remove_callback(Name, CbName),
     ok.
