@@ -171,7 +171,13 @@ network_events(_Config) ->
                 <<"Network.requestWillBeSent">> ->
                     Self ! will;
                 <<"Network.responseReceived">> ->
-                    Self ! resp;
+                    Params = maps:get(<<"params">>, Event, #{}),
+                    ReqId  = maps:get(<<"requestId">>, Params, undefined),
+                    Self ! {resp, ReqId};
+                <<"Network.loadingFinished">> ->
+                    Params = maps:get(<<"params">>, Event, #{}),
+                    ReqId  = maps:get(<<"requestId">>, Params, undefined),
+                    Self ! {load, ReqId};
                 _ -> ok
             end,
             true
@@ -182,16 +188,27 @@ network_events(_Config) ->
         %% Trigger a fetch inside the page.
         _ = chrme_runtime:evaluate(session_ne, <<"fetch('https://example.com/')">>),
 
-        %% Wait for both requestWillBeSent and responseReceived to ensure multiple events.
+
+        %% Wait for requestWillBeSent, responseReceived, loadingFinished.
+
         receive
             will -> ok
         after 5000 -> ct:fail(missing_request_will_be_sent)
         end,
 
+        ReqId =
         receive
-            resp -> ok
+            {resp, RId} -> RId
         after 5000 -> ct:fail(missing_response_received)
         end,
+
+        receive
+            {load, ReqId} -> ok
+        after 5000 -> ct:fail(missing_loading_finished)
+        end,
+
+        {ok, Body, _Encoded} = chrme_network:get_response_body(session_ne, ReqId),
+        true = byte_size(Body) > 0,
 
         chrme_network:unregister_event_handler(session_ne, RefNet),
 

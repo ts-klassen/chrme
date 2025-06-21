@@ -2,7 +2,8 @@
 -export([enable/1, disable/1, set_request_interception/2,
          continue_intercepted_request/2, emulate_network_conditions/2,
          register_request_will_be_sent_handler/2, unregister_request_will_be_sent_handler/2,
-         register_event_handler/2, unregister_event_handler/2]).
+         register_event_handler/2, unregister_event_handler/2,
+         get_response_body/2]).
 
 %% Enable network tracking
 -spec enable(Name :: chrme_session:name()) -> {ok, map()} | {error, term()}.
@@ -50,6 +51,26 @@ unregister_request_will_be_sent_handler(Name, Ref) ->
     CallbackName = {chrme_network, register_request_will_be_sent_handler, Name, Ref},
     chrme_ws_apic:remove_callback(Name, CallbackName),
     ok.
+
+%% ------------------------------------------------------------------
+%%  Convenience: fetch response body for a completed request.
+%%  Wraps the CDP method Network.getResponseBody
+%% ------------------------------------------------------------------
+
+%% Return the response body (potentially base64-encoded) for the given
+%% requestId. The tuple is {ok, BodyBin, IsBase64Encoded} so the caller
+%% can decide whether to decode.
+
+-spec get_response_body(Name :: chrme_session:name(),
+                       RequestId :: term()) ->
+          {ok, binary(), boolean()} | {error, term()}.
+get_response_body(Name, RequestId) ->
+    case chrme_cdp:call(Name, <<"Network.getResponseBody">>, #{requestId => RequestId}) of
+        {ok, #{<<"body">> := Body, <<"base64Encoded">> := Encoded}} ->
+            {ok, Body, Encoded};
+        Other ->
+            Other
+    end.
 
 %% ------------------------------------------------------------------
 %%  New convenience: listen to *all* Network domain events.
